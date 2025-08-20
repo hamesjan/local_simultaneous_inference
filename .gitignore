@@ -3,3 +3,6 @@
 **/__pycache__/
 /output/
 **/.mypy_cache/
+/env/
+/mmlu/
+/MMLU-Pro/
