@@ -1,4 +1,3 @@
-# file: live_mind/models/ollama_adapter.py
 import requests
 import json
 from typing import List, Dict, Iterable
