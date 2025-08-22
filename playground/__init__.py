@@ -5,17 +5,13 @@ from . import ollama_session   # NEW
 
 __all__ = ["gradio"]
 
-LOCAL_MODELS = ["llama3.2:1b"]
-LLAMA_MODELS = ["llama-3-8b", "llama-3-70b"]
-OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"]
-SUPPORTED_MODELS = LLAMA_MODELS + OPENAI_MODELS + LOCAL_MODELS
+LLAMA_MODELS = ["llama3.2:1b"]
+SUPPORTED_MODELS = LLAMA_MODELS
 
 def get_stream_model(name: str) -> BaseStreamModel:
     assert name in SUPPORTED_MODELS, f"Model {name} is not supported."
-    if name in LOCAL_MODELS:
+    if name in LLAMA_MODELS:
         return ollama_session.Session(name, temperature=0.0)
-    elif name in OPENAI_MODELS:
-        return _get_stream_openai_model(name)
     raise ValueError("Unreachable")
 
 def _get_stream_ollama_model(name: str) -> BaseStreamModel:
