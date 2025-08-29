@@ -51,6 +51,7 @@ class LMGradioInterface:
                     yield chatbot
 
             def action_change(text, use_lm):
+                print("text\n")
                 if not use_lm:
                     return
 
