@@ -17,7 +17,7 @@ DEFAULT_MIN_LEN = 3
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the chat interface")
-    parser.add_argument("-i",  "--infer-model",   metavar="M",    type=str, default="llama-3-70b", help=f"inference model, default: llama-3-70b, supported: {', '.join(SUPPORTED_MODELS)}")
+    parser.add_argument("-i",  "--infer-model",   metavar="M",    type=str, default="llama3.2:1b", help=f"inference model, default: llama-3-70b, supported: {', '.join(SUPPORTED_MODELS)}")
     parser.add_argument("-o",  "--out-model",     metavar="M",    type=str, default=None, help=f"output model, default: same as inference model, supported: {', '.join(SUPPORTED_MODELS)}")
     parser.add_argument("-pf", "--prompt-format", metavar="FMT",  type=str, default="ua-spi", choices=FORMAT_MAP.keys(), help=f"prompt format, can be {', '.join(FORMAT_MAP.keys())}")
     parser.add_argument("-g",  "--granularity",   metavar="G",    type=str, default="clause", choices=GRAUNLARITIES, help=f"granularity of the text streamer, can be {', '.join(GRAUNLARITIES)}")
