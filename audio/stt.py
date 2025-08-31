@@ -54,5 +54,6 @@ class SileroSTT:
             except Exception:
                 # Non-fatal if cleanup fails
                 pass
-
-        return (text or "").strip() + ". "
+        
+        
+        return (text or "").strip()

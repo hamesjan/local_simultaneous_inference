@@ -47,7 +47,8 @@ class LMGradioInterface:
         self._stt_sr = 16000
         self._stt_min_secs = 1.2   # buffer ~1.2s before transcribing
         self._last_transcript_ts = 0.0
-
+        self.msg_debounce = ""
+        self.msg_debounce_ctr = 0
         self.on_mount()
 
     # ---------- Helpers ----------
@@ -150,6 +151,7 @@ class LMGradioInterface:
                 """
                 try:
                     if audio is None:
+                        print("Audio None")
                         return current_text
 
                     # Accept dict {"sampling_rate": int, "data": list/ndarray} or (sr, data)
@@ -168,6 +170,12 @@ class LMGradioInterface:
 
                     # Only transcribe when enough audio is buffered
                     if not self._enough_audio(sr):
+                        print("Audio not enough: ", self.msg_debounce_ctr)
+                        if self.msg_debounce_ctr == 3:
+                            self.msg_debounce_ctr += 1
+                            return current_text + ". "
+                        else:
+                            self.msg_debounce_ctr += 1
                         return current_text
 
                     # Grab and clear the buffer for the next window
@@ -177,17 +185,21 @@ class LMGradioInterface:
                     # Run STT on this window
                     text = self.stt.run_stt(raw_bytes=raw, sample_rate=sr)
                     if not text:
+                        print("no text")
                         return current_text
 
                     base = current_text or ""
                     sep = "" if base.endswith((" ", "\n", "")) else " "
-                    return base + sep + text
+                    print("here: ->>>>", self.msg_debounce, base + sep + text)
+                    if self.msg_debounce != base + sep + text:
+                        self.msg_debounce_ctr = 0 
+                        self.msg_debounce = base + sep + text
+                    return base + sep + text + " "
                 except Exception:
                     # Be resilient to any STT hiccup
                     return current_text
 
             def periodic_infer(current_text, use_lm_val):
-                print(current_text)
                 if not use_lm_val or not current_text:
                     return self.infer_msg
                 with self.lock:
@@ -214,7 +226,7 @@ class LMGradioInterface:
 
             # Mic streams into stt_append which updates the msg textbox
             mic.stream(stt_append, [mic, msg], [msg], queue=True, show_progress=False)
-            timer = gr.Timer(3.0)
+            timer = gr.Timer(1.0)
 
                 # Bind it to your function
             timer.tick(
