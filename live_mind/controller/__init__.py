@@ -186,6 +186,7 @@ class LMStreamController(LMController, abc.BaseStreamController):
         stream_end:bool=False
     ) -> Generator[abc.RespnseStreamer, None, None]:
         prompts = self.segmenter(prompt)
+        print(prompts)
         if not stream_end:
             prompts = prompts[:-1]
         cache_entries, new_prompts = self.action_cache.read_action(prompts)

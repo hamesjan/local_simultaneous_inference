@@ -142,21 +142,15 @@ class LMGradioInterface:
             def change_visibility(show):
                 return gr.Textbox(visible=bool(show))
 
-            # -------- NEW: mic → STT → append into msg --------
-            def stt_append_and_infer(audio, current_text, use_lm_val):
+            #-------- NEW: mic → STT → append into msg --------
+            def stt_append(audio, current_text):
                 """
-                Streamed handler for mic:
-                1) Append transcribed chunk to msg
-                2) If LM is enabled, run streaming inference on (self.input_msg + msg)
-                    and yield incremental updates to infer_box.
-                Yields: (updated_msg, updated_infer_box_text)
+                Called for every mic chunk. We buffer ~1.2s, then transcribe once,
+                and append the result to the visible msg textbox.
                 """
                 try:
-                    # --- 1) same buffering/transcribe logic you already have ---
                     if audio is None:
-                        # Nothing to do; keep infer_box as-is
-                        yield current_text, self.infer_msg
-                        return
+                        return current_text
 
                     # Accept dict {"sampling_rate": int, "data": list/ndarray} or (sr, data)
                     if isinstance(audio, dict):
@@ -174,46 +168,39 @@ class LMGradioInterface:
 
                     # Only transcribe when enough audio is buffered
                     if not self._enough_audio(sr):
-                        # Yield current state so UI stays responsive
-                        yield current_text, self.infer_msg
-                        return
+                        return current_text
 
-                    # Flush buffer window and run STT
+                    # Grab and clear the buffer for the next window
                     raw = bytes(self._stt_buf)
                     self._stt_buf.clear()
-                    chunk_text = self.stt.run_stt(raw_bytes=raw, sample_rate=sr)
 
-                    # Append into the visible textbox
-                    if chunk_text:
-                        base = current_text or ""
-                        sep = "" if base.endswith((" ", "\n", "")) else " "
-                        new_msg = base + sep + chunk_text
-                    else:
-                        new_msg = current_text
+                    # Run STT on this window
+                    text = self.stt.run_stt(raw_bytes=raw, sample_rate=sr)
+                    if not text:
+                        return current_text
 
-                    # First, immediately show the updated msg (no inference yet)
-                    yield new_msg, self.infer_msg
-
-                    # --- 2) run streaming inference like action_change does ---
-                    if not use_lm_val:
-                        return
-
-                    with self.lock:
-                        text_for_infer = self.input_msg + new_msg
-                        for response in self.lm_controller.iter_call(text_for_infer):
-                            if self.infer_msg != "":
-                                self.infer_msg += "\n"
-                            for s in response:
-                                self.infer_msg += s
-                                # Stream both: keep msg fixed, update infer_box incrementally
-                                yield new_msg, self.infer_msg
-
-                        # Final yield to flush any remaining UI updates
-                        yield new_msg, self.infer_msg
-
+                    base = current_text or ""
+                    sep = "" if base.endswith((" ", "\n", "")) else " "
+                    return base + sep + text
                 except Exception:
-                    # Be resilient; don't crash the stream on one bad chunk
-                    yield current_text, self.infer_msg
+                    # Be resilient to any STT hiccup
+                    return current_text
+
+            def periodic_infer(current_text, use_lm_val):
+                print(current_text)
+                if not use_lm_val or not current_text:
+                    return self.infer_msg
+                with self.lock:
+                    ctx = self.input_msg + current_text
+                    for response in self.lm_controller.iter_call(ctx):
+                        if self.infer_msg != "":
+                            self.infer_msg += "\n"
+                        for s in response:
+                            self.infer_msg += s
+                            yield self.infer_msg
+                yield self.infer_msg
+
+            # Add a timer that calls inference every 1s
 
 
             # Wire up events
@@ -221,16 +208,19 @@ class LMGradioInterface:
                .then(action_submit, [use_lm, chatbot], [chatbot], queue=True)\
                .then(update_input, [], queue=True)
 
-            msg.change(action_change, [msg, use_lm], infer_box, show_progress=False, queue=True)
+            # msg.change(action_change, [msg, use_lm], infer_box, show_progress=False, queue=True)
             clear.click(action_clear, [], [chatbot, infer_box], queue=True)
             show_infer.change(change_visibility, show_infer, infer_box, show_progress=False)
 
             # Mic streams into stt_append which updates the msg textbox
-            mic.stream(
-                stt_append_and_infer,              # new handler below
-                [mic, msg, use_lm],               # inputs
-                [msg, infer_box],                 # outputs: update both msg and infer_box
-                queue=True,
+            mic.stream(stt_append, [mic, msg], [msg], queue=True, show_progress=False)
+            timer = gr.Timer(3.0)
+
+                # Bind it to your function
+            timer.tick(
+                fn=periodic_infer,
+                inputs=[msg, use_lm],
+                outputs=infer_box,
                 show_progress=False
             )
         self.demo = demo
